@@ -1,0 +1,258 @@
+ffmpeg -i C:/1.mp4 -f image2 C:/Python25/images/image%4d.png
+
+from scipy.ndimage import *
+import glob,os,time,gobject
+import matplotlib
+matplotlib.use('GTKAgg')
+from pylab import *
+
+def rgb2bw(im):
+ '''duh'''
+ return round_((im[:,:,0]+im[:,:,1]+im[:,:,2])/3)
+
+
+
+def rgb2gray(im):
+ '''duh'''
+ return ((im[:,:,0]+im[:,:,1]+im[:,:,2])/3)
+
+
+
+def point2Gaps(a):
+ ''' takes a 1D vector and returns the intervales between sequential elements'''
+ gaps = zeros(size(a)-1)
+ for cnt in range(0,size(a)-1):
+  gaps[cnt] = a[cnt+1] - a[cnt]
+ return gaps
+
+
+
+changeBufferLength = 30
+minSceneLength = 250
+numStdDev = 3
+realTimeSwitch = False
+postProcessingSwitch = False
+files=glob.glob('C:/Python25/Images/*.png')
+files.sort()
+im = rgb2gray(imread(files[0]))
+changeFrameMax =1
+theFig = figure(1)
+showSub1 = theFig.add_subplot(221)
+theShow1 = imshow(im)
+gray()
+title('Difference')
+showSub2 = theFig.add_subplot(222)
+theShow2 = imshow(im)
+title('Original')
+plotSub = theFig.add_subplot(212)
+thePlot = plot([0,0],'-o')
+grid(1)
+xlabel('Frame Number')
+meanLine = axhline(0,linewidth=2,color='r')
+stdDevSpan = axhspan(0,0,alpha=.1)
+changeVector=[0]
+frameVector=[0]
+frameNo =0
+motionFrameVector=[0]
+tStart = time.time()
+t0=tStart
+colorString=['y','b','g','m','r']
+manager = get_current_fig_manager()
+
+def frameDiffLoop(*args):
+ global frameNo, im, changeVector, frameVector,t0,motionFrameVector,colorString,tStop,changeFrameMax,minSceneLength
+ perSecond = time.time() - t0
+ t0 = time.time()
+ frame = files[frameNo]
+ im0 = im
+ im = rgb2gray(imread(frame))
+ changeFrame = abs(im- im0)
+ if changeFrame.sum() == 0:change = 0
+ else: change = changeFrame.sum()/(changeFrame.size * changeFrameMax)
+ changeVector.append(change)
+ frameVector.append(frameVector[-1]+1)
+ thePlot[0].set_data(frameVector,changeVector)
+ plotSub.set_ylim([0,max(changeVector)])
+ if size(frameVector) > changeBufferLength:
+  plotSub.set_xlim([frameVector[-changeBufferLength],frameVector[-1]])
+ else:
+  plotSub.set_xlim([0,frameVector[-1]])
+ changeBuffer = changeVector[-changeBufferLength:]
+ changeMean = mean(changeBuffer)
+ changeStdDev = standard_deviation(changeBuffer)
+ upperLimit = changeMean + numStdDev*changeStdDev
+ lowerLimit = changeMean - numStdDev*changeStdDev
+ meanLine.set_ydata(changeMean)
+ stdDevSpan.set_xy(array([\
+ [ 0. , lowerLimit],\
+ [ 0. , upperLimit],\
+ [ 1. , upperLimit],\
+ [ 1. , lowerLimit],\
+ [ 0. , lowerLimit]]) )
+ subplot(212)
+ infoString = 'FPS: %01.1f, mean=%0.2f, $\sigma$= %0.2f'%(1./perSecond,changeMean,changeStdDev)
+ title(infoString)
+ if change > upperLimit and (frameNo-motionFrameVector[-1]) > minSceneLength:
+  ylabel('!!!!!! MOTION !!!!!!!')
+  motionFrameVector.append(frameNo)
+ else:
+  ylabel('')
+ theShow1.set_data(changeFrame)
+ theShow2.set_data(imread(frame))
+ if realTimeSwitch:
+  theFig.canvas.draw()
+ frameNo += 1
+ if frameNo < size(files):
+  return True
+ else:
+  tStop = time.time()
+  if postProcessingSwitch:
+   sceneLengths = point2Gaps(motionFrameVector)
+   numScenes = sum( array(point2Gaps(motionFrameVector))>minSceneLength)
+   changeTotalMean = mean(changeVector)
+   changeTotalStdDev = standard_deviation(changeVector)
+   theFig2 = figure(2,figsize=(10,8))
+   ax1 = axes([0.1, 0.3, 0.8, 0.6])
+   hist(sceneLengths,bins = 100)
+   title('histogram of intervals between scene changes')
+   xlabel('intervals between scene changes (#frames)')
+   grid(1)
+   ax2 = axes([0.1, 0.1, 0.8, 0.10], yticks=[0])
+   xlabel('Frame Number')
+   for x in range(0,size(motionFrameVector)-1):
+    axvspan(motionFrameVector[x],motionFrameVector[x+1],alpha=.5,facecolor=colorString[randint(0,4)])
+   xlim([0,frameNo])
+   theFig3 = figure(3)
+   changeVectorHist = histogram(changeVector,bins= size(changeVector)/10)
+   plot(changeVectorHist[1],changeVectorHist[0])
+   for x in range(1,5):
+    axvspan( changeTotalMean- x*changeTotalStdDev, changeTotalMean + x*changeTotalStdDev,facecolor=colorString[x],alpha=.1)
+   xlabel('Frame Diference (sum(a-b))')
+   title('Histogram of Frame Differences for entire movie')
+   ylabel('Normalized Sum of Frame Difference ')
+   grid(1)
+   show()
+  return False
+
+
+
+gobject.idle_add(frameDiffLoop)
+show()
+
+
+import re
+FPS=24
+endFrameNo=[x-1 for x in motionFrameVector]
+FrameNoSec= [x/FPS for x in endFrameNo]
+del FrameNoSec[0]
+sub=open("C:/subfile.txt","r")    
+c=1
+t=open("C:/test/Scene%i.txt" %(c),"w")  
+next=0
+FrameNoSec=[float(x) for x in FrameNoSec]
+SceneEnding=FrameNoSec[0]
+for line in sub:
+ temp=map(int, re.findall(r'\d+', line))
+ if len(temp) == 8:
+  tempEndStamp= temp[0]*3600+temp[1]*60+temp[2]+float(temp[3])/1000
+  tempEndStamp="%.3f" %tempEndStamp
+  tempEndStamp=float(tempEndStamp)
+ else:
+  tempEndStamp=0.0
+ if (tempEndStamp > SceneEnding):
+  t.close()
+  c+=1
+  next+=1
+  SceneEnding=FrameNoSec[next]
+  t=open("C:/test/Scene%i.txt" %(c),"w")
+  t.write(line+"\n")
+ else:
+  t.write(line+"\n")
+
+
+import re
+
+import AlchemyAPI
+alchemyObj = AlchemyAPI.AlchemyAPI()
+alchemyObj.loadAPIKey("C:/api_key.txt")
+
+texthandle=open("C:/subfile.txt",'r')
+text=texthandle.read()
+result=alchemyObj.HTMLGetRankedKeywords(text,"C:/subfile.txt")
+
+# maybe add synopsis keyword analysis
+#find a way to process result
+
+vocab = ["hair", "bongos", "haircut records", "Mr. D'Onofrio", "austronaut training"] 
+k1=vocab[0]
+k2=vocab[1]
+k3=vocab[2]
+k4=vocab[3]
+k5=vocab[4]
+rating=[]
+
+
+for h in range(1, next):
+ shandle=open("C:/test/Scene%i.txt" %(h), 'r').read()
+ r1=shandle.count(k1)
+ r2=shandle.count(k2)
+ r3=shandle.count(k3)
+ r4=shandle.count(k4)
+ r5=shandle.count(k5)
+ r=r1+r2+r3+r4+r5
+ rating.append(r)
+
+
+import subprocess
+selectedScenes=[]
+final=[]
+argCut=[]
+argPaste=[]
+
+
+for q in range(0,5):
+ selectedScenes.append(max((num, i) for i, num in enumerate(rating)))
+ p=selectedScenes[q][1]
+ rating[p]=0
+ final.append(p)
+final.sort()
+
+for i in range(0,5):
+ startframe.append(motionFrameVector[final[i]])
+
+endframe=[x+164 for x in startframe]
+
+startsec=[x/FPS for x in startframe]
+for i in range(0,len(startsec)):
+ startsec[i]="%.3f" %startsec[i]
+ startsec[i]=float(startsec[i])
+
+endsec=[x/FPS for x in endframe]
+for i in range(0,len(endsec)):
+ endsec[i]="%.3f" %endsec[i]
+ endsec[i]=float(endsec[i])
+
+
+argCut.append("mp4box")
+argCut.append(' "C:/1.mp4"')
+ 
+for i in range(0,len(startsec)):
+ argCut.append(' -splitx %i:%i' %(startsec[i],endsec[i]))
+ argCut.append(' -out "C:/scene%i.mp4"' %(i))
+ mp4boxCut=''.join(argCut) 
+ retcode = subprocess.call(mp4boxCut, shell=True)
+ argCut=["mp4box"]
+ argCut.append(' "C:/1.mp4"')
+
+
+argPaste.append("mp4box")
+argPaste.append(" C:/Scene1.mp4")
+for i in range(1,4):
+ argPaste.append(' -cat "C:/scene%i.mp4"'%(i+1))
+
+
+argPaste.append(' -out "C:/trailer.mp4"')
+mp4boxPaste=''.join(argPaste)
+retcode = subprocess.call(mp4boxPaste, shell=True)
+
+
