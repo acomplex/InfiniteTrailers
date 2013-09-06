@@ -19,6 +19,7 @@ ADDITIONALLY:
 
 GPAC Framework-0.5.0 (MP4BOX) (Used to manipulate the video file)
 FFmpeg -2013-09-04git-54d628a (Used to convert video to images for the analysis)
+AlchemyAPI -0.8 for Python    (Used for keyword extraction from the subtitles)
 
 ------------------------------------------------------------------------------------
 
