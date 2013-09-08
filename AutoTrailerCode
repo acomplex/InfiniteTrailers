@@ -1,5 +1,12 @@
+--------------------------------------
+CONVERT VIDEO INTO A SERIES OF IMAGES
+--------------------------------------
 ffmpeg -i C:/1.mp4 -f image2 C:/Python25/images/image%4d.png
 
+
+-----------------------------------
+DETECT SCENES & EXTRACT TIMESTAMPS
+-----------------------------------
 from scipy.ndimage import *
 import glob,os,time,gobject
 import matplotlib
@@ -30,7 +37,7 @@ def point2Gaps(a):
 changeBufferLength = 30
 minSceneLength = 250
 numStdDev = 3
-realTimeSwitch = False
+realTimeSwitch = True
 postProcessingSwitch = False
 files=glob.glob('C:/Python25/Images/*.png')
 files.sort()
@@ -139,6 +146,9 @@ def frameDiffLoop(*args):
 gobject.idle_add(frameDiffLoop)
 show()
 
+--------------------------------
+SPLIT SUBTITLE FILE INTO SCENES
+--------------------------------
 
 import re
 FPS=24
@@ -170,6 +180,10 @@ for line in sub:
   t.write(line+"\n")
 
 
+------------------
+FIND KEYWORDS
+------------------
+
 import re
 
 import AlchemyAPI
@@ -181,7 +195,11 @@ text=texthandle.read()
 result=alchemyObj.HTMLGetRankedKeywords(text,"C:/subfile.txt")
 
 # maybe add synopsis keyword analysis
-#find a way to process result
+#find a way to process result or user input
+
+--------------------------------
+CALCULATE RATING FOR EACH SCENE
+--------------------------------
 
 vocab = ["hair", "bongos", "haircut records", "Mr. D'Onofrio", "austronaut training"] 
 k1=vocab[0]
@@ -208,6 +226,7 @@ selectedScenes=[]
 final=[]
 argCut=[]
 argPaste=[]
+startframe=[]
 
 
 for q in range(0,5):
@@ -215,7 +234,14 @@ for q in range(0,5):
  p=selectedScenes[q][1]
  rating[p]=0
  final.append(p)
+
+
 final.sort()
+
+----------------------
+RECREATE TRAILER
+----------------------
+
 
 for i in range(0,5):
  startframe.append(motionFrameVector[final[i]])
